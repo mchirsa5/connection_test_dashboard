@@ -2,7 +2,7 @@
   <div class="pt-4 md:pt-8">
     <h2 class="text-xl font-semibold mb-4">REGISTRATION STATUS</h2>
 
-    <div class="flex flex-col items-center justify-center space-y-6">
+    <div class="flex flex-col justify-center space-y-6">
       <AutoComplete
         v-model="selectedVenId"
         dropdown
@@ -12,11 +12,17 @@
         class="w-full md:w-1/2"
       />
 
-      <div v-if="venData" class="w-full md:w-1/2 p-4 bg-white border rounded-lg shadow-md">
+      <div v-if="venData" class="w-full p-4 bg-white border rounded-lg shadow-md">
         <div class="space-y-2">
           <p><strong>VEN Name:</strong> {{ venData.venname }}</p>
           <p><strong>VEN ID:</strong> {{ venData.venid }}</p>
           <p><strong>Registration ID:</strong> {{ venData.registrationid }}</p>
+          <p><strong>Profile Name:</strong> {{ venData.profilename }}</p>
+          <p><strong>Transport Name:</strong> {{ venData.transportname }}</p>
+          <p><strong>Pull mode:</strong> {{ venData.httppullmodel }}</p>
+          <p><strong>Poll Frequency:</strong> {{ venData.requestedoadrpollfreq }}</p>
+          <p><strong>Report Only:</strong> {{ venData.reportonly }}</p>
+          <p><strong>XML Signature:</strong> {{ venData.xmlsignature }}</p>
           <p><strong>Registration State:</strong> <span :class="stateClass(venData.registrationstate)">{{ venData.registrationstate }}</span></p>
           <p><strong>Report State:</strong> <span :class="stateClass(venData.reportstate)">{{ venData.reportstate }}</span></p>
         </div>
@@ -41,21 +47,22 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import AutoComplete from 'primevue/autocomplete';
 import Button from 'primevue/button';
+import { store } from '../store';
 
-// --- State ---
+const props = defineProps({
+  venId: String
+});
+const emit = defineEmits(['update:venId']);
 
-const selectedVenId = ref('EGAT_VEN0008'); // Default selected VEN
-const suggestions = ref([]); // For AutoComplete suggestions
-const venData = ref(null); // Holds the detailed data for the selected VEN
-const error = ref(null); // For API errors
-
-// This would typically be fetched from an API, but is hardcoded as per the original file.
+const defaultVenId = 'EGAT_VEN0008';
+const selectedVenId = ref(props.venId || defaultVenId);
+const suggestions = ref([]);
+const venData = ref(null);
+const error = ref(null);
 const availableVenIds = ref(['EGAT_VEN0008', 'EGAT_VEN0009']);
-
-// --- API Communication ---
 
 /**
  * Fetches the detailed data for a given VEN ID from the API.
@@ -68,19 +75,37 @@ const fetchVenData = async (venid) => {
   error.value = null;
   venData.value = null;
 
-  try {
+  
+try {
     const response = await fetch(`http://localhost:3000/api/getvendata?venid=${venid}`);
     if (!response.ok) {
       throw new Error(`Network response was not ok (status: ${response.status})`);
     }
     const data = await response.json();
-    // Assuming the API returns an array, we take the first element.
     venData.value = data[0] || null;
+    store.venData = venData.value;
   } catch (err) {
     error.value = err.message;
     console.error('Failed to fetch VEN data:', err);
   }
 };
+
+/**
+ * Emits the default VEN ID if none is provided.
+ */
+onMounted(() => {
+  if (!props.venId) {
+    emit('update:venId', defaultVenId);
+  }
+});
+
+/**
+ * Watch for changes in selected VEN ID and fetch data.
+ */
+watch(selectedVenId, (newVal) => {
+  emit('update:venId', newVal);
+  fetchVenData(newVal);
+}, { immediate: true });
 
 /**
  * Calls a POST endpoint to toggle a state and refreshes the data on success.
@@ -102,21 +127,12 @@ const toggleState = async (endpoint) => {
       throw new Error(`Network response was not ok (status: ${response.status})`);
     }
 
-    // Refresh data from the server to ensure UI is in sync
     await fetchVenData(selectedVenId.value);
-
   } catch (err) {
     error.value = err.message;
     console.error(`Error calling ${endpoint}:`, err);
   }
 };
-
-// --- Watchers and Event Handlers ---
-
-// Fetch data whenever the selected VEN ID changes.
-watch(selectedVenId, (newId) => {
-  fetchVenData(newId);
-}, { immediate: true }); // immediate: true runs the watcher on component load
 
 /**
  * Filters available VEN IDs for the AutoComplete component.
@@ -136,9 +152,9 @@ const stateClass = (state) => {
 };
 </script>
 
+
 <style>
-/* Optional: Add some global styling if needed */
 body {
-  background-color: #f8fafc; /* Tailwind's gray-50 */
+  background-color: #f8fafc;
 }
 </style>
